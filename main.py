@@ -48,7 +48,7 @@ def _get_solvers(day):
 
 def _get_text_files(root, for_solver, solver_names):
     for path in sorted(os.listdir(root)):
-        if path.endswith('.txt'):
+        if path.endswith('.txt') and not path.startswith('skip_'):
             if not any(name in path for name in solver_names) or for_solver in path:
                 yield os.path.join(root, path)
 
@@ -57,7 +57,7 @@ def _run_solver(solver, file):
     filename = os.path.split(file)[1]
     with open(file) as fp:
         start = datetime.now()
-        lines = (l.rstrip('\n') for l in fp.readlines())
+        lines = [l.rstrip('\n') for l in fp.readlines()]
         solution = str(solver(lines, *sys.argv[2:]))
         if '\n' in solution:
             solution = '\n  ' + solution.replace('\n', '\n  ')
