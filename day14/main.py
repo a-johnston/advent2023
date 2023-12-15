@@ -1,26 +1,17 @@
 from itertools import pairwise
 
 def parse(lines):
+    lines.insert(0, '#' * len(lines[0]))
+    lines.append(lines[0])
     rocks = set()
-    blocks = set()
+    grid = []
     for y, line in enumerate(lines):
+        line = '#' + line + '#'
+        grid.append(list(line))
         for x, c in enumerate(line):
             if c == 'O':
                 rocks.add((x, y))
-            elif c == '#':
-                blocks.add((x, y))
-    return rocks, blocks, (len(lines[0]), len(lines))
-
-def valid(pos, size, *args):
-    if pos[0] >= 0 and pos[1] >= 0 and pos[0] < size[0] and pos[1] < size[1]:
-        return all(pos not in arg for arg in args)
-    return False
-
-def add(a, b):
-    return a[0] + b[0], a[1] + b[1]
-
-def dot(a, b):
-    return a[0] * b[0] + a[1] * b[1]
+    return rocks, grid
 
 def find_right(values, count):
     for i in range(len(values) - 2, -1, -1):
@@ -43,34 +34,43 @@ def try_detect_cycle(loads, limit):
                 break
         else:
             return loads[starts[0] + ((limit - starts[1] - 1) % delta)]
-    return -1
+    return None
 
 def calc_load(rocks, size):
-    return sum(size[1] - pos[1] for pos in rocks), hash(tuple(sorted(rocks)))
+    return sum(size - pos[1] - 1 for pos in rocks)
 
-def roll(rocks, blocks, size, moves, limit):
-    rocks = set(rocks)
+def roll(rocks, grid, moves, limit):
     cycles = 0
     loads = []
     while cycles < limit:
         cycles += 1
+        key = 0
         for towards in moves:
-            for pos in sorted(rocks, key=lambda pos: -dot(pos, towards)):
-                rocks.remove(pos)
-                maybe_pos = add(pos, towards)
-                while valid(maybe_pos, size, rocks, blocks):
-                    pos = maybe_pos
-                    maybe_pos = add(pos, towards)
-                rocks.add(pos)
-        loads.append(calc_load(rocks, size))
+            dx, dy = towards
+            for pos in sorted(rocks, key=lambda pos: -pos[0] * dx - pos[1] * dy):
+                x, y = pos
+                mx = x + dx
+                my = y + dy
+                if grid[my][mx] == '.':
+                    rocks.remove(pos)
+                    grid[y][x] = '.'
+                    while grid[my][mx] == '.':
+                        mx += dx
+                        my += dy
+                    x = mx - dx
+                    y = my - dy
+                    rocks.add((x, y))
+                    grid[y][x] = 'O'
+                key += x * 123 + y
+        loads.append((calc_load(rocks, len(grid)), key))
         score = try_detect_cycle(loads, limit)
-        if score != -1:
+        if score is not None:
             return score[0]
     return loads[-1][0]
 
 def get_total_load(lines, moves, limit):
-    rocks, blocks, size = parse(lines)
-    return roll(rocks, blocks, size, moves, limit)
+    rocks, grid = parse(lines)
+    return roll(rocks, grid, moves, limit)
 
 def solve_p1(lines):
     return get_total_load(lines, [(0, -1)], 100)
