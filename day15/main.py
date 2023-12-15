@@ -11,24 +11,16 @@ def solve_p1(lines):
     return sum(map(holiday_hash, parse(lines)))
 
 def solve_p2(lines):
-    count = [0 for _ in range(256)]
     boxes = [{} for _ in range(256)]
     for step in parse(lines):
         if step.endswith('-'):
             label = step[:-1]
-            hh = holiday_hash(label)
-            boxes[hh].pop(label, None)
+            boxes[holiday_hash(label)].pop(label, None)
         else:
             label, focus = step.split('=')
-            hh = holiday_hash(label)
-            box = boxes[hh]
-            if label in box:
-                box[label][1] = int(focus)
-            else:
-                box[label] = [count[hh], int(focus)]
-                count[hh] += 1
+            boxes[holiday_hash(label)][label] = int(focus)
     total = 0
     for box_idx, box in enumerate(boxes, start=1):
-        for (len_idx, (_, focus)) in enumerate(sorted(box.values(), key=lambda cf: cf[0]), start=1):
-            total += box_idx * len_idx * focus
+        for lens_idx, focus in enumerate(box.values(), start=1):
+            total += box_idx * lens_idx * focus
     return total
