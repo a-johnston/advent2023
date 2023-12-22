@@ -53,9 +53,8 @@ def get_even_odd_reach(grid, overlay):
         a, b, c = b, c, get_score(overlay)
     return (a, b) if count % 2 == 0 else (b, a)
 
-def solve_p2(lines):
+def solve_p2(lines, steps=26501365):
     _, grid, size = parse(lines)
-    steps = 26501365
     r = int(size / 2)
     n = int((steps - r) / size)
     total = 0
@@ -71,3 +70,6 @@ def solve_p2(lines):
     for pos in ((r, 0), (r, size - 1), (0, r), (size - 1, r)):
         total += score_after_n(grid, create_overlay(size, pos), size - 1)
     return total
+
+def solve_p3(lines):
+    return solve_p2(lines, 1000000000)
