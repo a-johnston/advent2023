@@ -1,9 +1,4 @@
-import z3
-
-def get_2d_dets(pos, vel):
-    x1, y1 = pos[0], pos[1]
-    x2, y2 = x1 + vel[0], y1 + vel[1]
-    return x1 * y2 - x2 * y1, x1 - x2, y1 - y2
+from itertools import combinations
 
 def check_side(v, dv, cv):
     if cv < v:
@@ -15,14 +10,8 @@ def check_side(v, dv, cv):
 def inv(a):
     return -a[0], -a[1], -a[2]
 
-def length(v):
-    return (dot(v, v)) ** 0.5
-
 def scale(v, n):
     return v[0] * n, v[1] * n, v[2] * n
-
-def norm(v):
-    return scale(v, 1 / length(v))
 
 def add(a, b):
     return a[0] + b[0], a[1] + b[1], a[2] + b[2]
@@ -31,7 +20,7 @@ def sub(a, b):
     return a[0] - b[0], a[1] - b[1], a[2] - b[2]
 
 def dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] + b[2]
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 def cross(a, b):
     return a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]
@@ -41,7 +30,11 @@ class Stone:
         self.idx = idx
         self.pos = pos
         self.vel = vel
-        self.dets = get_2d_dets(pos, vel)
+
+    def get_dets(self):
+        x1, y1 = self.pos[0], self.pos[1]
+        x2, y2 = x1 + self.vel[0], y1 + self.vel[1]
+        return x1 * y2 - x2 * y1, x1 - x2, y1 - y2
 
     def check_xy(self, px, py):
         return check_side(self.pos[0], self.vel[0], px) and check_side(self.pos[1], self.vel[1], py)
@@ -53,11 +46,31 @@ class Stone:
     def at(self, t):
         return add(self.pos, scale(self.vel, t))
 
+    def test_intersects_path_2d(self, other, test=None):
+        a_xy, a_x, a_y = self.get_dets()
+        b_xy, b_x, b_y = other.get_dets()
+        pxn = a_xy * b_x - a_x * b_xy
+        pyn = a_xy * b_y - a_y * b_xy
+        pd = a_x * b_y - a_y * b_x
+        if pd == 0:
+            return False
+        px = pxn / pd
+        py = pyn / pd
+        if not self.check_xy(px, py) or not other.check_xy(px, py):
+            return False
+        if test is not None and (px < test[0] or px > test[1] or py < test[0] or py > test[1]):
+            return False
+        return True
+
+    def intersect_plane(self, n):
+        t = dot(inv(self.pos), n) / dot(self.vel, n)
+        return self.at(t), t
+
     def in_frame(self, frame):
-        return Stone(self.idx, sub(frame.pos, self.pos), sub(frame.vel, self.vel))
+        return Stone(self.idx, sub(self.pos, frame.pos), sub(self.vel, frame.vel))
 
     def out_frame(self, frame):
-        return Stone(self.idx, add(frame.pos, self.pos), add(frame.vel, self.vel))
+        return Stone(self.idx, add(self.pos, frame.pos), add(self.vel, frame.vel))
 
 def parse(lines):
     stones = []
@@ -69,75 +82,21 @@ def parse(lines):
         stones.append(Stone(chr(ord('A') + len(stones)), l, r))
     return area, stones
 
-def get_intersection(a, b):
-    a_xy, a_x, a_y = a.dets
-    b_xy, b_x, b_y = b.dets
-    pxn = a_xy * b_x - a_x * b_xy
-    pyn = a_xy * b_y - a_y * b_xy
-    pd = a_x * b_y - a_y * b_x
-    if pd == 0:
-        return None, None
-    px = pxn / pd
-    py = pyn / pd
-    if not a.check_xy(px, py) or not b.check_xy(px, py):
-        return None, None
-    return px, py
-
 def solve_p1(lines):
     area, stones = parse(lines)
-    count = 0
-    for i, a in enumerate(stones):
-        for b in stones[i:]:
-            ix, iy = get_intersection(a, b)
-            if ix is None:
-                continue
-            if ix < area[0] or ix > area[1] or iy < area[0] or iy > area[1]:
-                continue
-            count += 1
-    return count
-
-def intersect_plane(n, stone):
-    t = dot(inv(stone.pos), n) / dot(stone.vel, n)
-    return stone.at(t), t
+    return sum(a.test_intersects_path_2d(b, area) for a, b in combinations(stones, 2))
 
 def solve_p2(lines):
     _, stones = parse(lines)
     # Use first stone as a frame of reference; thrown rock must cross origin in this frame
     ref = stones[0]
-    # Use second stone in above frame to define a plane containing that stone and zero
+    # Use second stone in above frame to define a plane containing that stone's path and origin
     a = stones[1].in_frame(ref)
-    n = cross(a.vel, inv(a.pos))
+    n = cross(a.vel, a.pos)
     # Intersect third and fourth stones with plane to obtain t3 and t4
-    i3, t3 = intersect_plane(n, stones[3].in_frame(ref))
-    i4, t4 = intersect_plane(n, stones[4].in_frame(ref))
+    i3, t3 = stones[2].in_frame(ref).intersect_plane(n)
+    i4, t4 = stones[3].in_frame(ref).intersect_plane(n)
     # Compute throw velocity and then position using obtained points and times
     v = scale(sub(i4, i3), 1 / (t4 - t3))
     p = sub(i3, scale(v, t3))
-    return add(p, ref.pos)
-
-def solve_p3(lines):
-    _, stones = parse(lines)
-
-    rx, ry, rz = z3.Reals('rx ry rz')
-    rvx, rvy, rvz = z3.Reals('rvx rvy rvz')
-    t0, t1, t2 = z3.Reals('t0 t1 t2')
-    answer = z3.Real('answer')
-
-    a, b, c = stones[0], stones[1], stones[2]
-
-    return z3.solve(
-        # Stone 0
-        rx + t0 * rvx == a.pos[0] + t0 * a.vel[0],
-        ry + t0 * rvy == a.pos[1] + t0 * a.vel[1],
-        rz + t0 * rvz == a.pos[2] + t0 * a.vel[2],
-        # Stone 1
-        rx + t1 * rvx == b.pos[0] + t1 * b.vel[0],
-        ry + t1 * rvy == b.pos[1] + t1 * b.vel[1],
-        rz + t1 * rvz == b.pos[2] + t1 * b.vel[2],
-        # Stone 2
-        rx + t2 * rvx == c.pos[0] + t2 * c.vel[0],
-        ry + t2 * rvy == c.pos[1] + t2 * c.vel[1],
-        rz + t2 * rvz == c.pos[2] + t2 * c.vel[2],
-        # Result
-        answer == rx + ry + rz
-    )
+    return int(sum(Stone(-1, p, v).out_frame(ref).pos))
