@@ -1,4 +1,4 @@
-from random import choice
+from random import random 
 from collections import defaultdict
 
 def parse(lines):
@@ -17,7 +17,12 @@ def solve(lines):
     def count_out_edges(node):
         return len(graph[node] - partition)
 
+    def key(node):
+        return count_out_edges(node) + random() * 0.5
+
     while sum(map(count_out_edges, partition)) != 3:
-        partition.remove(max(partition, key=count_out_edges))
+        if not partition:  # Reset process if we happen to get unlucky
+            partition = set(graph)
+        partition.remove(max(partition, key=key))
 
     return len(partition) * len(set(graph) - partition)
