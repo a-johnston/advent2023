@@ -3,11 +3,15 @@ DIRS = (E, W, N, S)
 SLOPES = {'>': E, '<': W, 'v': S, '^': N}
 
 class Node:
-    def __init__(self, x, y, is_end=False):
+    def __init__(self, i, x, y, is_end=False):
+        self.i = i
         self.x = x
         self.y = y
         self.edges = {}
         self.is_end = is_end
+
+    def edgelist(self):
+        return [(other.i, weight) for other, weight in self.edges.items()]
 
 def get_options(grid, x, y, directed):
     ret = set()
@@ -43,30 +47,30 @@ def parse(lines, use_directed):
     end = lines[-1].index('.'), len(lines)
     pad = ['#'] * len(lines[0])
     grid = [pad] + list(map(list, lines)) + [pad]
-    nodes = {start: Node(*start), end: Node(*end, is_end=True)}
+    nodes = {start: Node(0, *start), end: Node(1, *end, is_end=True)}
     for y in range(1, len(grid) - 1):
         for x in range(1, len(grid[0]) - 1):
             if len(get_options(grid, x, y, False)) > 2:
-                nodes[(x, y)] = Node(x, y)
+                nodes[(x, y)] = Node(len(nodes), x, y)
     for node in nodes.values():
         build_connections(grid, node, nodes, directed=use_directed)
-    return nodes[start]
+    return [node.edgelist() for node in nodes.values()]
 
-def get_longest(node, ignore=frozenset()):
+def get_longest(at, edgelist, ignore=frozenset()):
     dist = 0
-    ignore |= {node}
-    for other, edge_dist in node.edges.items():
-        if other in ignore:
+    ignore |= {at}
+    for i, w in edgelist[at]:
+        if i in ignore:
             continue
-        sublength = get_longest(other, ignore)
+        sublength = get_longest(i, edgelist, ignore)
         if sublength == -1:
             continue
-        if sublength + edge_dist > dist:
-            dist = sublength + edge_dist
-    return dist + 1 if dist > 0 or node.is_end else -1
+        if sublength + w > dist:
+            dist = sublength + w
+    return dist + 1 if dist > 0 or at == 1 else -1
 
 def solve_p1(lines):
-    return get_longest(parse(lines, True)) - 1
+    return get_longest(0, parse(lines, True)) - 1
 
 def solve_p2(lines):
-    return get_longest(parse(lines, False)) - 1
+    return get_longest(0, parse(lines, False)) - 1
